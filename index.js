@@ -32,6 +32,7 @@ program
   .option('-o, --out <dir>', 'output the rendered HTML or compiled JavaScript to <dir>')
   .option('-p, --path <path>', 'filename used to resolve includes')
   .option('-b, --basedir <path>', 'path used as root directory to resolve absolute includes')
+  .option('-r, --print', 'print to stdout instead of writing to file')
   .option('-P, --pretty', 'compile pretty HTML output')
   .option('-c, --client', 'compile function for client-side')
   .option('-n, --name <str>', 'the name of the compiled template (requires --client)')
@@ -209,7 +210,7 @@ function tryRender(path, rootPath) {
     renderFile(path, rootPath);
   } catch (e) {
     // keep watching when error occured.
-    console.error(errorToString(e) + '\x07');
+    console.error(errorToString(e));
   }
 }
 
@@ -242,12 +243,10 @@ function stdin() {
  */
 
 function renderFile(path, rootPath) {
-  var isPug = /\.(?:pug|jade)$/;
-  var isIgnored = /([\/\\]_)|(^_)/;
-
+  var re = /\.(?:pug|jade)$/;
   var stat = fs.lstatSync(path);
   // Found pug file
-  if (stat.isFile() && isPug.test(path) && !isIgnored.test(path)) {
+  if (stat.isFile() && re.test(path)) {
     // Try to watch the file if needed. watchFile takes care of duplicates.
     if (program.watch) watchFile(path, null, rootPath);
     if (program.nameAfterFile) {
@@ -267,11 +266,10 @@ function renderFile(path, rootPath) {
     var extname;
     if (program.extension)   extname = '.' + program.extension;
     else if (options.client) extname = '.js';
-    else if (program.extension === '') extname = '';
     else                     extname = '.html';
 
     // path: foo.pug -> foo.<ext>
-    path = path.replace(isPug, extname);
+    path = path.replace(re, extname);
     if (program.out) {
       // prepend output directory
       if (rootPath) {
@@ -286,8 +284,9 @@ function renderFile(path, rootPath) {
     var dir = resolve(dirname(path));
     mkdirp.sync(dir);
     var output = options.client ? fn : fn(options);
-    fs.writeFileSync(path, output);
-    consoleLog('  ' + chalk.gray('rendered') + ' ' + chalk.cyan('%s'), normalize(path));
+    if (!program.print) { fs.writeFileSync(path, output); }
+    else { process.stdout.write(output); }
+    if (!program.print) consoleLog('  ' + chalk.gray('rendered') + ' ' + chalk.cyan('%s'), normalize(path));
   // Found directory
   } else if (stat.isDirectory()) {
     var files = fs.readdirSync(path);
